@@ -1,0 +1,6 @@
+config.json
+papercup.pid
+papercup.egg-info
+client_certs
+*.pyc
+__pycache__
