@@ -1,4 +1,4 @@
-import os
+import os, sys
 import tornado.ioloop
 import tornado.web
 import tornado.autoreload
@@ -17,6 +17,8 @@ import papercup.logs as logs
 
 def main():
     global routes, static_path, timers
+    sys.path.append(os.getcwd())
+
     config.load()
 
     logs.init()
