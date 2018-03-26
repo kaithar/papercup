@@ -71,7 +71,7 @@ def post_init():
     mysqlconf = config.get('papercup', 'db')
     if mysqlconf:
         from sqlalchemy import create_engine
-        engine = create_engine(mysqlconf, pool_recycle=0)
+        engine = create_engine(mysqlconf, pool_recycle=0, encoding='utf-8')
         Base.prepare(engine, reflect=True)
         _sm.configure(bind=engine)
         c = Base.classes
