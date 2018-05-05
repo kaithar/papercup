@@ -28,12 +28,22 @@ from sqlalchemy.exc import DBAPIError
 
 import transaction
 
+engine = None
 _sm = sessionmaker(expire_on_commit=False)
 
 def get_session():
     return scoped_session(_sm)
 
-Base = automap_base()
+convention = {
+  "ix": "a_ix_%(column_0_label)s",
+  "uq": "a_uq_%(table_name)s_%(column_0_name)s",
+  "ck": "a_ck_%(table_name)s_%(constraint_name)s",
+  "fk": "a_fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+  "pk": "a_pk_%(table_name)s"
+}
+
+metadata = MetaData(naming_convention=convention)
+Base = automap_base(metadata=metadata)
 
 # Decorator - binds a session to the lifetime of a member function of a class
 def bind_session( wrapfunc ):
@@ -66,13 +76,13 @@ config_defaults = {
 }
 
 def post_init():
-    global c
+    global c, engine
     from papercup import config
     mysqlconf = config.get('papercup', 'db')
     if mysqlconf:
         from sqlalchemy import create_engine
         engine = create_engine(mysqlconf, pool_recycle=0, encoding='utf-8')
-        Base.prepare(engine, reflect=True)
+        metadata.reflect(engine)
+        Base.prepare()
         _sm.configure(bind=engine)
         c = Base.classes
-        
