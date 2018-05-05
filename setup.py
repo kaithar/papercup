@@ -7,5 +7,8 @@ setup(
         'console_scripts': [
                 'papercup = papercup.main:main'
         ]
+    },
+    package_data={
+      'papercup': 'static/*'
     }
 )
