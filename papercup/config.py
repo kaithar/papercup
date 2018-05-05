@@ -129,6 +129,17 @@ def init_modules():
       logger.info("Post Initialising driver: %s from %s"%(m, usable_modules[m].__name__))
       usable_modules[m].post_init()
 
+def prerun_modules():
+  from papercup import logs
+  logger = logs.logger
+  usable_modules = config_data['papercup']['modules_by_name']
+
+  # No guarentees on the order this gets called in either
+  for m in config_data['papercup']['loaded_modules']:
+    if hasattr(usable_modules[m], 'prerun'):
+      logger.info("Pre-run function for driver: %s from %s"%(m, usable_modules[m].__name__))
+      usable_modules[m].prerun()
+
 
 def get(*args):
   try:

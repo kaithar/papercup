@@ -5,19 +5,43 @@ import tornado.autoreload
 from pid import PidFile, PidFileAlreadyRunningError, PidFileAlreadyLockedError
 import time
 import logging
+import argparse
 
 import papercup.config as config
 
 static_path = None
+args = None
 
 routes = []
 timers = []
+exit_hooks = []
 
 import papercup.logs as logs
 
 def main():
-    global routes, static_path, timers
+    global args
     sys.path.append(os.getcwd())
+
+    # Options are up first
+    parser = argparse.ArgumentParser(description='Papercup main entrypoint', fromfile_prefix_chars='@')
+    subparsers = parser.add_subparsers(title='commands', dest='cmd')
+    parser_start = subparsers.add_parser('start', help='Start the papercup server')
+    parser_revision = subparsers.add_parser('revision', help='Create a new alembic migration')
+    parser_migrate = subparsers.add_parser('migrate', help='Run all pending migrations')
+    parser_heads = subparsers.add_parser('heads', help='See alembic heads')
+    parser_history = subparsers.add_parser('history', help='See alembic history')
+    parser_upgrade = subparsers.add_parser('upgrade', help='Upgrade database tables')
+
+    parser_revision.add_argument('-m', '--message', help='Message string for revision')
+    parser_revision.add_argument('--init', help='Create a new root revision for a module', action='store_true')
+    parser_revision.add_argument('module', help='Module to add revision to')
+    parser_heads.add_argument('-v', '--verbose', help='Verbose output', action='store_true')
+    parser_history.add_argument('-v', '--verbose', help='Verbose output', action='store_true')
+    
+    parser.add_argument('-d', '--debug', help="Debugging stuff", action='store_true')
+    args = parser.parse_args()
+    if args.debug:
+        print(args)
 
     config.load()
 
@@ -31,13 +55,96 @@ def main():
     logger.info("")
     logger.info("Initializing " + config.get("papercup", "name") + "...")
 
-    logger.info("Config:")
-    import pprint
-    pprint.pprint(config.config_data)
+    if args.debug:
+        logger.info("Config:")
+        import pprint
+        pprint.pprint(config.config_data)
+
     logger.info("")
 
     baseguess = os.getcwd()
 
+    func = None
+    func = {
+        'start': start,
+        None: start,
+        'revision': revision,
+        'heads': heads,
+        'history': history,
+        'upgrade': upgrade
+    }.get(args.cmd, None)
+    if not func:
+        print('{} isn\' a known command'.format(args.cmd))
+        return
+    else:
+        func(args, logger, baseguess)
+
+def alembic_setup(logger):
+    logger.info("")
+    config.init_modules()
+    usable_modules = config.config_data['papercup']['modules_by_name']
+    alembic_modules = ['papercup']
+    alembic_versions = [os.path.join(os.path.dirname(__file__), 'migrations', 'versions')]
+    for m in config.config_data['papercup']['loaded_modules']:
+        if hasattr(usable_modules[m], 'alembic'):
+            alembic_modules.append(m)
+            alembic_versions.append(usable_modules[m].alembic['versions'])
+    from alembic.config import Config
+    alembic_config = Config()
+    alembic_config.set_main_option('script_location', os.path.join(os.path.dirname(__file__), 'migrations'))
+    alembic_config.set_main_option('version_locations', ' '.join(alembic_versions))
+    alembic_config.set_section_option('loggers', 'keys', 'root,sqlalchemy,alembic')
+    alembic_config.set_section_option('handlers', 'keys', 'console')
+    alembic_config.set_section_option('formatters', 'keys', 'generic')
+    alembic_config.set_section_option('logger_root', 'level', 'WARN')
+    alembic_config.set_section_option('logger_root', 'handlers', 'console')
+    alembic_config.set_section_option('logger_root', 'qualname', '')
+    alembic_config.set_section_option('logger_sqlalchemy', 'level', 'WARN')
+    alembic_config.set_section_option('logger_sqlalchemy', 'handlers', '')
+    alembic_config.set_section_option('logger_sqlalchemy', 'qualname', 'sqlalchemy.engine')
+    alembic_config.set_section_option('logger_alembic', 'level', 'INFO')
+    alembic_config.set_section_option('logger_alembic', 'handlers', '')
+    alembic_config.set_section_option('logger_alembic', 'qualname', 'alembic')
+    alembic_config.set_section_option('handler_console', 'class', 'StreamHandler')
+    alembic_config.set_section_option('handler_console', 'args', '(sys.stderr,)')
+    alembic_config.set_section_option('handler_console', 'level', 'NOTSET')
+    alembic_config.set_section_option('handler_console', 'formatter', 'generic')
+    alembic_config.set_section_option('formatter_generic', 'format', '%%(levelname)-5.5s [%%(name)s] %%(message)s')
+    alembic_config.set_section_option('formatter_generic', 'datefmt', '%%H:%%M:%%S')
+    #alembic_cfg.attributes['connection'] = connection
+    return (usable_modules, alembic_modules, alembic_config)
+
+
+def revision(args,logger, baseguess):
+    usable_modules, alembic_modules, alembic_config = alembic_setup(logger)
+    from alembic import command
+    if args.init:
+        if args.module not in alembic_modules:
+            print('{} isn\'t a configured module.  You can create revisions on one of these: {}'.format(args.module, ', '.join(alembic_modules)))
+            return
+        command.revision(config=alembic_config, message=args.message, head='base', branch_label=args.module,
+                         version_path=usable_modules[args.module].alembic['versions'])
+    else:
+        command.revision(config=alembic_config, message=args.message, head='{}@head'.format(args.module))
+
+def heads(args,logger, baseguess):
+    usable_modules, alembic_modules, alembic_config = alembic_setup(logger)
+    from alembic import command
+    command.heads(config=alembic_config, verbose=(args.verbose == True), resolve_dependencies=True)
+
+def history(args,logger, baseguess):
+    usable_modules, alembic_modules, alembic_config = alembic_setup(logger)
+    from alembic import command
+    command.history(config=alembic_config, verbose=(args.verbose == True))
+
+def upgrade(args,logger, baseguess):
+    usable_modules, alembic_modules, alembic_config = alembic_setup(logger)
+    from alembic import command
+    command.upgrade(config=alembic_config, revision='heads')
+
+
+def start(args, logger, baseguess):
+    global routes, static_path, timers
     pidfile = config.get('papercup', 'pidfile')
     if (pidfile[0] == '/'):
         piddir = os.path.dirname(pidfile)
@@ -67,6 +174,7 @@ def main():
 
     logger.info("")
     config.init_modules()
+    config.prerun_modules()
 
     import traceback
     import fnmatch
@@ -107,7 +215,12 @@ def main():
     logger.info("")
     logger.info("Running...")
     logger.info("")
-    tornado.ioloop.IOLoop.instance().start()
+    try:
+        tornado.ioloop.IOLoop.instance().start()
+    finally:
+        for f in exit_hooks:
+            f()
+
 
 if __name__ == "__main__":
     import papercup.main

@@ -80,6 +80,6 @@ class Periodic_handler(template_base):
         except:
             logger.error("Exception in runner!", exc_info=1)
 
-@handle_url("/papercup/static/(.*)", {"path": os.path.join(os.path.dirname(os.path.realpath(__file__)), 'static'), "default_filename": "index.html"})
+@handle_url("/static/papercup/(.*)", {"path": os.path.join(os.path.dirname(os.path.realpath(__file__)), 'static'), "default_filename": "index.html"})
 class statics(Static_handler):
   pass

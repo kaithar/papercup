@@ -4,8 +4,11 @@ fullpage = `
   <div id="header">
     <div class="linkbox">
       <div id="mainnav">
-        <router-link v-for="link in mainmenu" v-bind:href="link.href">{{link.text}}</router-link>
+        <router-link v-for="link in modulemenu" v-bind:href="link.href">{{link.text}}</router-link>
         <router-link href="/console/logout">Logout</router-link>
+      </div>
+      <div id="subnav">
+        <router-link v-for="link in mainmenu" v-bind:href="link.href">{{link.text}}</router-link>
       </div>
     </div>
     <div style="position:absolute;top:5px;right:5px"><a href='#' @click.prevent="websock">{{websockstate}}</a></div>
@@ -54,6 +57,7 @@ var vm = new Vue({
   template: fullpage,
   data: {
     currentView: 'maintemplate',
+    modulemenu: [],
     mainmenu: [],
     submenu: [],
     global_components: [],
