@@ -11,13 +11,7 @@ title = 'Console'
 styles = []
 scripts = []
 
-config_defaults = {
-    'papercup': {
-      'console': {
-        'root_templates': "/static/papercup/root_templates.js"
-      }
-    }
-}
+root_templates = "/static/papercup/root_templates.js"
 
 @handlers.handle_url("/console(?:/.*)?")
 class console_handler(handlers.Request_handler):
@@ -29,5 +23,5 @@ class console_handler(handlers.Request_handler):
       'title': title,
       'styles': styles,
       'scripts': scripts,
-      'template_js': config.get('papercup', 'console', "root_templates")
+      'template_js': root_templates
     }
