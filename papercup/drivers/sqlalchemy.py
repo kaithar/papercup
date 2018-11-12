@@ -75,13 +75,17 @@ config_defaults = {
     }
 }
 
-def post_init():
-    global c, engine
+def init():
+    global engine
     from papercup import config
     mysqlconf = config.get('papercup', 'db')
     if mysqlconf:
         from sqlalchemy import create_engine
         engine = create_engine(mysqlconf, pool_recycle=0, encoding='utf-8')
-        Base.prepare(engine, reflect=True)
         _sm.configure(bind=engine)
+
+def post_init():
+    global c, engine
+    if engine:
+        Base.prepare(engine, reflect=True)
         c = Base.classes
