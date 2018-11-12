@@ -82,7 +82,6 @@ def post_init():
     if mysqlconf:
         from sqlalchemy import create_engine
         engine = create_engine(mysqlconf, pool_recycle=0, encoding='utf-8')
-        metadata.reflect(engine)
-        Base.prepare()
+        Base.prepare(engine, reflect=True)
         _sm.configure(bind=engine)
         c = Base.classes
