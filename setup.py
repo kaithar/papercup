@@ -9,6 +9,6 @@ setup(
         ]
     },
     package_data={
-      'papercup': ['static/*']
+      'papercup': ['static/*', 'migrations/*']
     }
 )
