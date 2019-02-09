@@ -31,12 +31,15 @@ def main():
     parser_heads = subparsers.add_parser('heads', help='See alembic heads')
     parser_history = subparsers.add_parser('history', help='See alembic history')
     parser_upgrade = subparsers.add_parser('upgrade', help='Upgrade database tables')
+    parser_downgrade = subparsers.add_parser('downgrade', help='Downgrade database tables')
 
     parser_revision.add_argument('-m', '--message', help='Message string for revision')
     parser_revision.add_argument('--init', help='Create a new root revision for a module', action='store_true')
+    parser_revision.add_argument('--autogenerate', help='Try and guess about the changes wanted', action='store_true')
     parser_revision.add_argument('module', help='Module to add revision to')
     parser_heads.add_argument('-v', '--verbose', help='Verbose output', action='store_true')
     parser_history.add_argument('-v', '--verbose', help='Verbose output', action='store_true')
+    parser_downgrade.add_argument('target', help='Target revision')
     
     parser.add_argument('-d', '--debug', help="Debugging stuff", action='store_true')
     args = parser.parse_args()
@@ -71,7 +74,8 @@ def main():
         'revision': revision,
         'heads': heads,
         'history': history,
-        'upgrade': upgrade
+        'upgrade': upgrade,
+        'downgrade': downgrade,
     }.get(args.cmd, None)
     if not func:
         print('{} isn\' a known command'.format(args.cmd))
@@ -123,9 +127,11 @@ def revision(args,logger, baseguess):
             print('{} isn\'t a configured module.  You can create revisions on one of these: {}'.format(args.module, ', '.join(alembic_modules)))
             return
         command.revision(config=alembic_config, message=args.message, head='base', branch_label=args.module,
+                         autogenerate=args.autogenerate,
                          version_path=usable_modules[args.module].alembic['versions'])
     else:
-        command.revision(config=alembic_config, message=args.message, head='{}@head'.format(args.module))
+        command.revision(config=alembic_config, message=args.message, autogenerate=args.autogenerate,
+                         head='{}@head'.format(args.module))
 
 def heads(args,logger, baseguess):
     usable_modules, alembic_modules, alembic_config = alembic_setup(logger)
@@ -141,6 +147,11 @@ def upgrade(args,logger, baseguess):
     usable_modules, alembic_modules, alembic_config = alembic_setup(logger)
     from alembic import command
     command.upgrade(config=alembic_config, revision='heads')
+
+def downgrade(args,logger, baseguess):
+    usable_modules, alembic_modules, alembic_config = alembic_setup(logger)
+    from alembic import command
+    command.downgrade(config=alembic_config, revision=args.target)
 
 
 def start(args, logger, baseguess):
