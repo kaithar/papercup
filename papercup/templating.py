@@ -2,6 +2,8 @@ import hashlib
 import traceback
 from tornado import gen
 import tornado.autoreload
+from tornado.ioloop import IOLoop
+import asyncio
 import logging
 
 from papercup import config
@@ -16,26 +18,36 @@ def exception_catcher(func, self, *args, **kwargs):
         ex = traceback.format_exc()
         raise NestedException(ex)
 
-def use_template(template_file, filename=None, use_thread=False):
-    def template_wrapper(function_to_wrap):
-        def wrapper(self, *args, **kwargs):
+def use_template(template_file, filename=None, use_thread=False): # This is a decorator factory
+    def template_wrapper(function_to_wrap):                       # This is the actual decorator applied to the function
+        async def wrapper(self, *args, **kwargs):                 # This is the wrapper called in place of the original function
+            def shim():
+              c = function_to_wrap(self, *args, **kwargs)
+              if asyncio.iscoroutine(c):
+                loop = asyncio.new_event_loop()
+                try:
+                  asyncio.set_event_loop(loop)
+                  return loop.run_until_complete(c)
+                finally:
+                  loop.close()
+              else:
+                return c
             logger = logging.getLogger('papercup.templating')
             try:
                 content = None
                 if use_thread:
-                    future = self.executor.submit(exception_catcher, function_to_wrap, self, *args, **kwargs)
                     try:
-                        content = yield future
+                      content = await IOLoop.current().run_in_executor(None, shim)
                     except Exception:
                         self.set_status(500)
                         self.write("Nested exception at:\n")
                         self.write(traceback.format_exc())
-                        self.write("Nested exception was:\n")
-                        self.write(future.exception().message+"\n")
                         self.finish()
                         return
                 else:
-                    content = function_to_wrap(self, *args, **kwargs)
+                  content = function_to_wrap(self, *args, **kwargs)
+                  if asyncio.iscoroutine(content):
+                    content = await content
                 if content == None:
                     return
                 if template_file == "json" or template_file == "string":
@@ -101,5 +113,5 @@ def use_template(template_file, filename=None, use_thread=False):
                 self.write(traceback.format_exc())
                 self.finish()
                 return
-        return gen.coroutine(wrapper)
+        return wrapper
     return template_wrapper
