@@ -3,6 +3,7 @@ from boltons.iterutils import remap, get_path, default_enter
 import copy
 import os
 from importlib import import_module
+import traceback
 
 config_data = None
 
@@ -52,10 +53,12 @@ def load():
     return ret
   # Try loading the config file
   try:
-    with open('config.json', 'r') as conf:
+    with open(os.path.join(baseguess, 'config.json'), 'r') as conf:
       merge_config = config_file = json.load(conf)
       base = remap(base, _dmerge)
   except Exception as e:
+    print("Failed config.json")
+    print(traceback.format_exc())
     pass
   config = copy.deepcopy(base)
   # load modules to check for requirements
